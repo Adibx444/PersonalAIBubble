@@ -122,6 +122,7 @@ public class MainActivity extends Activity {
         root.addView(bubbleButton);
 
         setContentView(root);
+        handleBubbleIntent(getIntent());
     }
 
 
@@ -273,6 +274,38 @@ public class MainActivity extends Activity {
                     "Voice command-er jonno microphone permission lagbe.",
                     Toast.LENGTH_LONG).show();
         }
+    }
+
+
+    private void handleBubbleIntent(Intent intent) {
+        if (intent == null) return;
+
+        String command = intent.getStringExtra("bubble_command");
+        if (command != null && !command.trim().isEmpty()) {
+            intent.removeExtra("bubble_command");
+            input.setText(command);
+            sendCommand();
+        }
+
+        if (intent.getBooleanExtra("bubble_voice", false)) {
+            intent.removeExtra("bubble_voice");
+            startVoiceInput();
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleBubbleIntent(intent);
+    }
+
+    public void runBubbleCommand(String command) {
+        if (input == null) {
+            input = new EditText(this);
+        }
+        input.setText(command);
+        sendCommand();
     }
 
     void sendCommand() {

@@ -257,8 +257,8 @@ public class BubbleService extends Service {
                 @Override
                 public void onError(int error) {
                     Toast.makeText(BubbleService.this,
-                            "Voice recognition failed. Try again.",
-                            Toast.LENGTH_SHORT).show();
+                            "Voice error code: " + error,
+                            Toast.LENGTH_LONG).show();
                     recognizer.destroy();
                 }
 

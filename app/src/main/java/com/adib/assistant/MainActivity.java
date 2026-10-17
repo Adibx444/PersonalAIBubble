@@ -151,8 +151,22 @@ public class MainActivity extends Activity {
                     new java.text.SimpleDateFormat("hh:mm a",
                     java.util.Locale.getDefault()).format(new java.util.Date()));
         } else if (lower.equals("youtube")) {
-            addMessage("Assistant",
-                    "YouTube command chena hoyeche. App open feature porer dhape jog hobe.");
+            try {
+                android.content.Intent intent =
+                        getPackageManager().getLaunchIntentForPackage("com.google.android.youtube");
+                if (intent != null) {
+                    startActivity(intent);
+                    addMessage("Assistant", "YouTube open kora hocche.");
+                } else {
+                    intent = new android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://www.youtube.com"));
+                    startActivity(intent);
+                    addMessage("Assistant", "Browser-e YouTube khola hocche.");
+                }
+            } catch (Exception e) {
+                addMessage("Assistant", "YouTube khola jayni.");
+            }
         } else {
             addMessage("Assistant",
                     "Command peyechi, kintu ekhono ei command-er kaj jog kora hoyni.");

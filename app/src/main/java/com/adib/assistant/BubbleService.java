@@ -1,6 +1,15 @@
 package com.adib.assistant;
 
 import android.app.Service;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.content.Intent;
+import android.os.Bundle;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
+import java.util.ArrayList;
+import java.util.Locale;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -203,12 +212,83 @@ public class BubbleService extends Service {
         });
 
         voice.setOnClickListener(v -> {
-            Intent open = new Intent(this, MainActivity.class);
-            open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                    | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            open.putExtra("bubble_voice", true);
-            startActivity(open);
-            closePanel();
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                    != PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this,
+                        "Open the app and grant microphone permission first.",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                Toast.makeText(this,
+                        "Speech recognition is not available on this device.",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            SpeechRecognizer recognizer =
+                    SpeechRecognizer.createSpeechRecognizer(this);
+
+            recognizer.setRecognitionListener(new RecognitionListener() {
+                @Override
+                public void onReadyForSpeech(Bundle params) {
+                    Toast.makeText(BubbleService.this,
+                            "Listening... Speak now.",
+                            Toast.LENGTH_SHORT).show();
+                }
+
+                @Override
+                public void onResults(Bundle results) {
+                    ArrayList<String> matches = results.getStringArrayList(
+                            SpeechRecognizer.RESULTS_RECOGNITION);
+
+                    if (matches != null && !matches.isEmpty()) {
+                        command.setText(matches.get(0));
+                        command.setSelection(command.length());
+                    } else {
+                        Toast.makeText(BubbleService.this,
+                                "No speech recognized. Try again.",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                    recognizer.destroy();
+                }
+
+                @Override
+                public void onError(int error) {
+                    Toast.makeText(BubbleService.this,
+                            "Voice recognition failed. Try again.",
+                            Toast.LENGTH_SHORT).show();
+                    recognizer.destroy();
+                }
+
+                @Override public void onBeginningOfSpeech() {}
+                @Override public void onRmsChanged(float rmsdB) {}
+                @Override public void onBufferReceived(byte[] buffer) {}
+                @Override public void onEndOfSpeech() {}
+                @Override public void onPartialResults(Bundle partialResults) {}
+                @Override public void onEvent(int eventType, Bundle params) {}
+            });
+
+            Intent speechIntent = new Intent(
+                    RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            speechIntent.putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD");
+            speechIntent.putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "bn-BD");
+            speechIntent.putExtra(
+                    RecognizerIntent.EXTRA_PROMPT, "বাংলায় কথা বলুন");
+
+            try {
+                recognizer.startListening(speechIntent);
+            } catch (Exception e) {
+                recognizer.destroy();
+                Toast.makeText(BubbleService.this,
+                        "Could not start voice recognition.",
+                        Toast.LENGTH_SHORT).show();
+            }
         });
 
         close.setOnClickListener(v -> closePanel());

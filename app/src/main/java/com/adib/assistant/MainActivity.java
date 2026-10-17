@@ -2,20 +2,30 @@ package com.adib.assistant;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
+import android.speech.RecognitionListener;
 import android.graphics.Color;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.net.Uri;
+
+import java.util.ArrayList;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
 
     LinearLayout chatLayout;
     EditText input;
+    SpeechRecognizer speechRecognizer;
 
     int bg = Color.rgb(18, 23, 35);
     int panel = Color.rgb(31, 39, 55);
@@ -39,7 +49,7 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Your personal assistant");
+        subtitle.setText("Bangla & English Voice Assistant");
         subtitle.setTextSize(14);
         subtitle.setTextColor(Color.LTGRAY);
         subtitle.setGravity(Gravity.CENTER);
@@ -55,7 +65,8 @@ public class MainActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
 
-        addMessage("Assistant", "Hello! Ami tomar assistant. Nicher box-e command lekho.");
+        addMessage("Assistant",
+                "Hello! Voice button-e chap diye bolo: YouTube kholo ba shomoy bolo.");
 
         TextView quickTitle = new TextView(this);
         quickTitle.setText("Quick Commands");
@@ -66,11 +77,9 @@ public class MainActivity extends Activity {
 
         LinearLayout quickRow = new LinearLayout(this);
         quickRow.setOrientation(LinearLayout.HORIZONTAL);
-
         addQuickButton(quickRow, "Help");
         addQuickButton(quickRow, "Time");
         addQuickButton(quickRow, "YouTube");
-
         root.addView(quickRow);
 
         LinearLayout sendRow = new LinearLayout(this);
@@ -91,12 +100,18 @@ public class MainActivity extends Activity {
         Button send = new Button(this);
         send.setText("Send");
         send.setTextColor(Color.WHITE);
-        send.setBackgroundTintList(android.content.res.ColorStateList.valueOf(accent));
+        send.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(accent));
         send.setOnClickListener(v -> sendCommand());
-
         sendRow.addView(send);
-        root.addView(sendRow);
 
+        Button mic = new Button(this);
+        mic.setText("🎙️");
+        mic.setTextSize(18);
+        mic.setOnClickListener(v -> startVoiceInput());
+        sendRow.addView(mic);
+
+        root.addView(sendRow);
         setContentView(root);
     }
 
@@ -127,49 +142,171 @@ public class MainActivity extends Activity {
         chatLayout.addView(text, params);
     }
 
+    void startVoiceInput() {
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            addMessage("Assistant",
+                    "Speech recognition ei device-e available nei.");
+            return;
+        }
+
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                    new String[]{Manifest.permission.RECORD_AUDIO}, 101);
+            return;
+        }
+
+        if (speechRecognizer != null) {
+            speechRecognizer.destroy();
+        }
+
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        speechRecognizer.setRecognitionListener(new RecognitionListener() {
+            @Override
+            public void onReadyForSpeech(Bundle params) {
+                addMessage("Assistant", "Shunchi... Ekhon bolo.");
+            }
+
+            @Override
+            public void onBeginningOfSpeech() {}
+
+            @Override
+            public void onRmsChanged(float rmsdB) {}
+
+            @Override
+            public void onBufferReceived(byte[] buffer) {}
+
+            @Override
+            public void onEndOfSpeech() {}
+
+            @Override
+            public void onError(int error) {
+                addMessage("Assistant",
+                        "Kotha bujhte parini. Abar microphone chap diye bolo.");
+                if (speechRecognizer != null) {
+                    speechRecognizer.destroy();
+                    speechRecognizer = null;
+                }
+            }
+
+            @Override
+            public void onResults(Bundle results) {
+                ArrayList<String> matches =
+                        results.getStringArrayList(
+                                SpeechRecognizer.RESULTS_RECOGNITION);
+
+                if (matches != null && !matches.isEmpty()) {
+                    input.setText(matches.get(0));
+                    sendCommand();
+                }
+
+                if (speechRecognizer != null) {
+                    speechRecognizer.destroy();
+                    speechRecognizer = null;
+                }
+            }
+
+            @Override
+            public void onPartialResults(Bundle partialResults) {}
+
+            @Override
+            public void onEvent(int eventType, Bundle params) {}
+        });
+
+        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,
+                "bn-BD");
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,
+                "bn-BD");
+        intent.putExtra(RecognizerIntent.EXTRA_PROMPT,
+                "Command bolo / Speak a command");
+
+        try {
+            speechRecognizer.startListening(intent);
+        } catch (Exception e) {
+            addMessage("Assistant", "Voice input start kora jayni.");
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(
+                requestCode, permissions, grantResults);
+
+        if (requestCode == 101 && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            startVoiceInput();
+        } else if (requestCode == 101) {
+            Toast.makeText(this,
+                    "Voice command-er jonno microphone permission lagbe.",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
     void sendCommand() {
         String command = input.getText().toString().trim();
 
         if (command.isEmpty()) {
-            Toast.makeText(this, "Command lekho", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Command lekho ba bolo",
+                    Toast.LENGTH_SHORT).show();
             return;
         }
 
         addMessage("You", command);
         input.setText("");
 
-        String lower = command.toLowerCase();
+        String lower = command.toLowerCase(Locale.ROOT);
 
-        if (lower.equals("help") || lower.equals("সাহায্য")) {
+        if (lower.equals("help") || lower.contains("সাহায্য")) {
             addMessage("Assistant",
-                    "Ekhon test command ache: Help, Time, YouTube. " +
-                    "Onno command-er feature pore jog korbo.");
-        } else if (lower.equals("time") || lower.equals("সময়")
-                || lower.equals("সময়")) {
-            addMessage("Assistant",
-                    "Current time: " +
+                    "Test command: Help, Time, YouTube. " +
+                    "Bolo: YouTube kholo ba shomoy bolo.");
+        } else if (lower.equals("time")
+                || lower.contains("সময়")
+                || lower.contains("সময়")
+                || lower.contains("shomoy")
+                || lower.contains("somoy")
+                || lower.contains("কটা বাজে")) {
+            addMessage("Assistant", "Current time: " +
                     new java.text.SimpleDateFormat("hh:mm a",
-                    java.util.Locale.getDefault()).format(new java.util.Date()));
-        } else if (lower.equals("youtube")) {
-            try {
-                android.content.Intent intent =
-                        getPackageManager().getLaunchIntentForPackage("com.google.android.youtube");
-                if (intent != null) {
-                    startActivity(intent);
-                    addMessage("Assistant", "YouTube open kora hocche.");
-                } else {
-                    intent = new android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse("https://www.youtube.com"));
-                    startActivity(intent);
-                    addMessage("Assistant", "Browser-e YouTube khola hocche.");
-                }
-            } catch (Exception e) {
-                addMessage("Assistant", "YouTube khola jayni.");
-            }
+                    Locale.getDefault()).format(new java.util.Date()));
+        } else if (lower.contains("youtube")
+                || lower.contains("ইউটিউব")) {
+            openYouTube();
         } else {
             addMessage("Assistant",
-                    "Command peyechi, kintu ekhono ei command-er kaj jog kora hoyni.");
+                    "Command peyechi, kintu ei command-er kaj ekhono jog hoyni.");
         }
+    }
+
+    void openYouTube() {
+        try {
+            Intent intent = getPackageManager()
+                    .getLaunchIntentForPackage("com.google.android.youtube");
+
+            if (intent != null) {
+                startActivity(intent);
+                addMessage("Assistant", "YouTube open kora hocche.");
+            } else {
+                intent = new Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://www.youtube.com"));
+                startActivity(intent);
+                addMessage("Assistant", "Browser-e YouTube khola hocche.");
+            }
+        } catch (Exception e) {
+            addMessage("Assistant", "YouTube khola jayni.");
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (speechRecognizer != null) {
+            speechRecognizer.destroy();
+            speechRecognizer = null;
+        }
+        super.onDestroy();
     }
 }

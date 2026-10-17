@@ -274,11 +274,30 @@ public class MainActivity extends Activity {
                     new java.text.SimpleDateFormat("hh:mm a",
                     Locale.getDefault()).format(new java.util.Date()));
         } else if (lower.contains("youtube")
+                || lower.contains("ইউটিউب")
                 || lower.contains("ইউটিউব")) {
             openYouTube();
+        } else if (lower.contains("facebook")
+                || lower.contains("ফেসবুক")) {
+            openApp("com.facebook.katana", "https://www.facebook.com", "Facebook");
         } else {
             addMessage("Assistant",
                     "Command peyechi, kintu ei command-er kaj ekhono jog hoyni.");
+        }
+    }
+
+    void openApp(String packageName, String url, String appName) {
+        try {
+            Intent intent = getPackageManager().getLaunchIntentForPackage(packageName);
+            if (intent != null) {
+                startActivity(intent);
+                addMessage("Assistant", appName + " open kora hocche.");
+            } else {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                addMessage("Assistant", "Browser-e " + appName + " khola hocche.");
+            }
+        } catch (Exception e) {
+            addMessage("Assistant", appName + " khola jayni.");
         }
     }
 

@@ -280,6 +280,11 @@ public class MainActivity extends Activity {
         } else if (lower.contains("facebook")
                 || lower.contains("ফেসবুক")) {
             openApp("com.facebook.katana", "https://www.facebook.com", "Facebook");
+        } else if (lower.contains("whatsapp")
+                || lower.contains("হোয়াটসঅ্যাপ")
+                || lower.contains("হোয়াটসঅ্যাপ")
+                || lower.contains("হোয়াটস অ্যাপ")) {
+            openApp("com.whatsapp", "https://www.whatsapp.com", "WhatsApp");
         } else {
             addMessage("Assistant",
                     "Command peyechi, kintu ei command-er kaj ekhono jog hoyni.");

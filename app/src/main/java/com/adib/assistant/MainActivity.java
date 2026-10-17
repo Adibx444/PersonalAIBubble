@@ -112,7 +112,36 @@ public class MainActivity extends Activity {
         sendRow.addView(mic);
 
         root.addView(sendRow);
+
+        Button bubbleButton = new Button(this);
+        bubbleButton.setText("Start Floating Bubble");
+        bubbleButton.setTextColor(Color.WHITE);
+        bubbleButton.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(accent));
+        bubbleButton.setOnClickListener(v -> startFloatingBubble());
+        root.addView(bubbleButton);
+
         setContentView(root);
+    }
+
+
+    void startFloatingBubble() {
+        if (android.os.Build.VERSION.SDK_INT >= 23
+                && !android.provider.Settings.canDrawOverlays(this)) {
+            Intent intent = new Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+            Toast.makeText(this,
+                    "Allow display over other apps, then return and tap the button again.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Intent serviceIntent = new Intent(this, BubbleService.class);
+        startService(serviceIntent);
+        Toast.makeText(this, "Floating Bubble started!",
+                Toast.LENGTH_SHORT).show();
     }
 
     void addQuickButton(LinearLayout row, String text) {

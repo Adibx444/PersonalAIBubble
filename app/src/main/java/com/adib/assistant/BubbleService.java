@@ -34,6 +34,9 @@ public class BubbleService extends Service {
     private View panel;
     private WindowManager.LayoutParams bubbleParams;
     private WindowManager.LayoutParams panelParams;
+    private SpeechRecognizer alwaysRecognizer;
+    private boolean alwaysListening = false;
+    private boolean restartingListening = false;
 
     private int dp(int n) {
         return (int) (n * getResources().getDisplayMetrics().density + 0.5f);
@@ -86,6 +89,16 @@ public class BubbleService extends Service {
             float sx, sy;
             int ix, iy;
             boolean moved;
+            boolean longPressed;
+            final android.os.Handler handler =
+                    new android.os.Handler(android.os.Looper.getMainLooper());
+            final Runnable longPressAction = new Runnable() {
+                @Override
+                public void run() {
+                    longPressed = true;
+                    togglePanel();
+                }
+            };
 
             @Override
             public boolean onTouch(View v, MotionEvent e) {
@@ -96,6 +109,9 @@ public class BubbleService extends Service {
                         ix = bubbleParams.x;
                         iy = bubbleParams.y;
                         moved = false;
+                        longPressed = false;
+                        handler.postDelayed(longPressAction,
+                                android.view.ViewConfiguration.getLongPressTimeout());
                         return true;
 
                     case MotionEvent.ACTION_MOVE:
@@ -103,6 +119,7 @@ public class BubbleService extends Service {
                         float dy = e.getRawY() - sy;
                         if (Math.abs(dx) > dp(5) || Math.abs(dy) > dp(5)) {
                             moved = true;
+                            handler.removeCallbacks(longPressAction);
                         }
                         bubbleParams.x = ix + (int) dx;
                         bubbleParams.y = iy + (int) dy;
@@ -112,12 +129,15 @@ public class BubbleService extends Service {
                         return true;
 
                     case MotionEvent.ACTION_UP:
-                        if (!moved) {
-                            togglePanel();
+                    case MotionEvent.ACTION_CANCEL:
+                        handler.removeCallbacks(longPressAction);
+                        if (e.getAction() == MotionEvent.ACTION_UP
+                                && !moved && !longPressed) {
+                            toggleListening();
                         }
                         return true;
                 }
-                return false;
+                return true;
             }
         });
 
@@ -129,13 +149,116 @@ public class BubbleService extends Service {
         }
     }
 
-    private void togglePanel() {
-        if (panel != null) {
-            closePanel();
-        } else {
-            showPanel();
+
+    private void toggleListening() {
+        if (alwaysListening) stopAlwaysListening();
+        else startAlwaysListening();
+    }
+
+    private void startAlwaysListening() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Open the app and grant microphone permission first.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            Toast.makeText(this, "Speech recognition unavailable.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        alwaysListening = true;
+        bubble.setText("ON");
+        bubble.setBackgroundColor(Color.rgb(30, 170, 75));
+        Toast.makeText(this, "Voice listening ON.", Toast.LENGTH_SHORT).show();
+        startNextListening();
+    }
+
+    private void stopAlwaysListening() {
+        alwaysListening = false;
+        restartingListening = false;
+        if (alwaysRecognizer != null) {
+            try {
+                alwaysRecognizer.cancel();
+                alwaysRecognizer.destroy();
+            } catch (Exception ignored) {}
+            alwaysRecognizer = null;
+        }
+        if (bubble != null) {
+            bubble.setText("AI");
+            bubble.setBackgroundColor(Color.rgb(92, 120, 255));
         }
     }
+
+    private void startNextListening() {
+        if (!alwaysListening || restartingListening) return;
+        restartingListening = true;
+
+        if (alwaysRecognizer != null) {
+            try { alwaysRecognizer.destroy(); } catch (Exception ignored) {}
+        }
+        alwaysRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        final SpeechRecognizer current = alwaysRecognizer;
+
+        current.setRecognitionListener(new RecognitionListener() {
+            @Override public void onReadyForSpeech(Bundle params) {
+                restartingListening = false;
+            }
+
+            @Override public void onResults(Bundle results) {
+                restartingListening = false;
+                ArrayList<String> matches = results.getStringArrayList(
+                        SpeechRecognizer.RESULTS_RECOGNITION);
+                if (alwaysListening && matches != null && !matches.isEmpty()) {
+                    String spoken = matches.get(0).trim();
+                    if (!spoken.isEmpty()) {
+                        Intent open = new Intent(BubbleService.this, MainActivity.class);
+                        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                                | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                        open.putExtra("bubble_command", spoken);
+                        startActivity(open);
+                    }
+                }
+                scheduleNextListening();
+            }
+
+            @Override public void onError(int error) {
+                restartingListening = false;
+                scheduleNextListening();
+            }
+            @Override public void onEndOfSpeech() {}
+            @Override public void onBeginningOfSpeech() {}
+            @Override public void onRmsChanged(float rmsdB) {}
+            @Override public void onBufferReceived(byte[] buffer) {}
+            @Override public void onPartialResults(Bundle partialResults) {}
+            @Override public void onEvent(int eventType, Bundle params) {}
+        });
+
+        Intent speechIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD");
+        speechIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "bn-BD");
+        try {
+            current.startListening(speechIntent);
+        } catch (Exception e) {
+            restartingListening = false;
+            scheduleNextListening();
+        }
+    }
+
+    private void scheduleNextListening() {
+        if (!alwaysListening || bubble == null) return;
+        bubble.postDelayed(() -> {
+            if (alwaysListening) startNextListening();
+        }, 900);
+    }
+
+    private void togglePanel() {
+        if (panel != null) closePanel();
+        else showPanel();
+    }
+
 
     private void showPanel() {
         LinearLayout box = new LinearLayout(this);
@@ -149,7 +272,46 @@ public class BubbleService extends Service {
         title.setTextColor(Color.WHITE);
         title.setTextSize(18);
         title.setTypeface(null, Typeface.BOLD);
+        title.setText("Personal AI Mini Chat  —  Drag here");
+        title.setPadding(dp(4), dp(8), dp(4), dp(12));
+        title.setBackgroundColor(Color.rgb(38, 48, 68));
         box.addView(title);
+
+        title.setOnTouchListener(new View.OnTouchListener() {
+            private int startX;
+            private int startY;
+            private float downX;
+            private float downY;
+
+            @Override
+            public boolean onTouch(View v, android.view.MotionEvent event) {
+                if (panelParams == null || panel == null) return false;
+
+                switch (event.getAction()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        startX = panelParams.x;
+                        startY = panelParams.y;
+                        downX = event.getRawX();
+                        downY = event.getRawY();
+                        return true;
+
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        panelParams.x = startX
+                                + (int) (event.getRawX() - downX);
+                        panelParams.y = startY
+                                + (int) (event.getRawY() - downY);
+                        try {
+                            wm.updateViewLayout(panel, panelParams);
+                        } catch (Exception ignored) {}
+                        return true;
+
+                    case android.view.MotionEvent.ACTION_UP:
+                    case android.view.MotionEvent.ACTION_CANCEL:
+                        return true;
+                }
+                return true;
+            }
+        });
 
         TextView hint = new TextView(this);
         hint.setText("Try: Help, Time, YouTube, Facebook, WhatsApp");
@@ -318,6 +480,7 @@ public class BubbleService extends Service {
 
     @Override
     public void onDestroy() {
+        stopAlwaysListening();
         closePanel();
         if (wm != null && bubble != null) {
             try {

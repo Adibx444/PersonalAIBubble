@@ -224,6 +224,8 @@ public class BubbleService extends Service {
 
             @Override public void onError(int error) {
                 restartingListening = false;
+                android.util.Log.e("BubbleVoice",
+                        "SpeechRecognizer error code: " + error);
                 scheduleNextListening();
             }
             @Override public void onEndOfSpeech() {}

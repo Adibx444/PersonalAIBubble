@@ -335,6 +335,16 @@ public class MainActivity extends Activity {
             addMessage("Assistant", "Current time: " +
                     new java.text.SimpleDateFormat("hh:mm a",
                     Locale.getDefault()).format(new java.util.Date()));
+        } else if (lower.contains("home screen")
+                || lower.contains("homescreen")
+                || lower.contains("হোম স্ক্রিন")
+                || lower.contains("হোমে যাও")
+                || lower.contains("হোম স্ক্রিনে যাও")
+                || lower.contains("বাসায় যাও")) {
+            Intent home = new Intent(Intent.ACTION_MAIN);
+            home.addCategory(Intent.CATEGORY_HOME);
+            home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(home);
         } else if (lower.contains("youtube")
                 || lower.contains("ইউটিউب")
                 || lower.contains("ইউটিউব")) {
